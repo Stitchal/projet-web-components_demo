@@ -1,0 +1,43 @@
+# --- SYSTÈME ---
+.DS_Store
+Thumbs.db
+*.swp
+
+# --- ÉDITEURS (VS Code, JetBrains) ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- ENVIRONNEMENT & SÉCURITÉ ---
+# Ne jamais versionner vos secrets !
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# --- DÉPENDANCES ---
+node_modules/
+bower_components/
+vendor/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# --- BUILD & SORTIE ---
+dist/
+build/
+out/
+*.exe
+*.dll
+*.so
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# --- TESTS ---
+coverage/
+.nyc_output/
