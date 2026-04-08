@@ -1,21 +1,96 @@
 import { initDraggable } from './dragManager.js';
 
-await Promise.all([
+// ── Layout & drag — indépendant du chargement des composants ──────────────────
+
+const wins = ['win-player', 'win-playlist', 'win-eq', 'win-waveform', 'win-wam', 'win-butterchurn']
+    .map(id => document.querySelector('#' + id));
+
+window.addEventListener('load', () => layout());
+window.addEventListener('resize', () => layout());
+
+function layout() {
+    const GAP      = 12;
+    const W_PLAYER = 340;
+    const H_PLAYER = 242;
+    const W_EQ     = 320;
+    const H_PLAYLIST = 280;
+
+    const colLeft  = GAP;
+    const colMid   = colLeft + W_PLAYER + GAP;
+    const colRight = colMid  + W_EQ     + GAP;
+    const topH     = H_PLAYER + GAP + H_PLAYLIST;
+    const totalW   = window.innerWidth;
+
+    wins[0].style.cssText = `left:${colLeft}px; top:${GAP}px; width:${W_PLAYER}px; height:${H_PLAYER}px`;
+    wins[1].style.cssText = `left:${colLeft}px; top:${GAP + H_PLAYER + GAP}px; width:${W_PLAYER}px; height:${H_PLAYLIST}px`;
+    wins[2].style.cssText = `left:${colMid}px; top:${GAP}px; width:${W_EQ}px; height:${H_PLAYER}px`;
+    wins[3].style.cssText = `left:${colMid}px; top:${GAP + H_PLAYER + GAP}px; width:${W_EQ}px; height:${H_PLAYLIST}px`;
+    wins[5].style.cssText = `left:${colRight}px; top:${GAP}px; width:${totalW - colRight - GAP}px; height:${topH}px`;
+    wins[4].style.cssText = `left:${GAP}px; top:${GAP + topH + GAP}px; width:${totalW - 2 * GAP}px`;
+
+    const arena = document.querySelector('main');
+
+    function applyScale() {
+        const H_WAM  = wins[4].offsetHeight || 460;
+        const totalH = GAP + topH + GAP + H_WAM + GAP;
+        const scale  = window.innerHeight < totalH ? window.innerHeight / totalH : 1;
+        arena.style.transformOrigin = '0 0';
+        if (scale < 1) {
+            arena.style.transform = `scale(${scale})`;
+            arena.style.width  = `${totalW / scale}px`;
+            arena.style.height = `${window.innerHeight / scale}px`;
+        } else {
+            arena.style.transform = '';
+            arena.style.width  = '';
+            arena.style.height = '';
+        }
+    }
+
+    requestAnimationFrame(applyScale);
+
+    // Recalcule le scale quand le WAM finit de rendre son clavier
+    if (!wins[4]._scaleObserver) {
+        wins[4]._scaleObserver = new ResizeObserver(applyScale);
+        wins[4]._scaleObserver.observe(wins[4]);
+    }
+
+    initDraggable(wins);
+}
+
+// ── Câblage audio — déclenché dès que chaque composant est prêt ───────────────
+
+function withTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+    ]);
+}
+
+withTimeout(Promise.all([
     customElements.whenDefined('my-audio-player'),
     customElements.whenDefined('my-eq'),
     customElements.whenDefined('my-waveform'),
     customElements.whenDefined('my-butterchurn'),
-]);
-const player      = document.querySelector('#player');
-const eq          = document.querySelector('#eq');
-const waveform    = document.querySelector('#waveform');
-const butterchurn = document.querySelector('#butterchurn');
-player.connectComponent(eq);
-eq.connectComponent(waveform);
-waveform.connectComponent(butterchurn);
+]), 15000).then(() => {
+    const player      = document.querySelector('#player');
+    const eq          = document.querySelector('#eq');
+    const waveform    = document.querySelector('#waveform');
+    const butterchurn = document.querySelector('#butterchurn');
+    if (player && eq && waveform && butterchurn) {
+        player.connectComponent(eq);
+        eq.connectComponent(waveform);
+        waveform.connectComponent(butterchurn);
+    }
+}).catch(() => {
+    console.warn('Audio chain: one or more components failed to load in time.');
+});
+
+// ── Raccourcis clavier ────────────────────────────────────────────────────────
 
 document.addEventListener('keydown', (e) => {
     if (e.target.matches('input, textarea, select')) return;
+    const player = document.querySelector('#player');
+    if (!player) return;
     switch (e.code) {
         case 'Space':
             e.preventDefault();
@@ -28,6 +103,8 @@ document.addEventListener('keydown', (e) => {
         case 'KeyM': player.toggleMute(); break;
     }
 });
+
+// ── Volume WAM ────────────────────────────────────────────────────────────────
 
 customElements.whenDefined('wam-host').then(() => {
     const wamHost = document.querySelector('wam-host');
@@ -58,71 +135,3 @@ customElements.whenDefined('wam-host').then(() => {
         });
     }, 200);
 });
-
-// Fenêtres draggables avec positionnement initial
-const wins = ['win-player', 'win-playlist', 'win-eq', 'win-waveform', 'win-wam', 'win-butterchurn']
-    .map(id => document.querySelector('#' + id));
-
-window.addEventListener('load', () => layout());
-
-function layout() {
-    const GAP      = 12;
-    const W_PLAYER = 340;
-    const H_PLAYER = 242;
-    const W_EQ     = 320;
-    const H_PLAYLIST = 280;
-
-    const colLeft  = GAP;
-    const colMid   = colLeft + W_PLAYER + GAP;
-    const colRight = colMid  + W_EQ     + GAP;
-    const topH     = H_PLAYER + GAP + H_PLAYLIST;
-    const totalW   = window.innerWidth;
-
-    // Col 1 : player + playlist
-    wins[0].style.cssText = `left:${colLeft}px; top:${GAP}px; width:${W_PLAYER}px; height:${H_PLAYER}px`;
-    wins[1].style.cssText = `left:${colLeft}px; top:${GAP + H_PLAYER + GAP}px; width:${W_PLAYER}px; height:${H_PLAYLIST}px`;
-    // Col 2 : eq (même hauteur que player) + waveform (même hauteur que playlist)
-    wins[2].style.cssText = `left:${colMid}px; top:${GAP}px; width:${W_EQ}px; height:${H_PLAYER}px`;
-    wins[3].style.cssText = `left:${colMid}px; top:${GAP + H_PLAYER + GAP}px; width:${W_EQ}px; height:${H_PLAYLIST}px`;
-    // Col 3 : butterchurn — largeur restante de l'écran, hauteur des deux colonnes
-    const wButter = totalW - colRight - GAP;
-    wins[5].style.cssText = `left:${colRight}px; top:${GAP}px; width:${wButter}px; height:${topH}px`;
-
-    const H_WAM = 460;
-
-    // Piano : pleine largeur en bas
-    wins[4].style.cssText = `left:${GAP}px; top:${GAP + topH + GAP}px; width:${totalW - 2 * GAP}px; height:${H_WAM}px`;
-
-    const totalH = GAP + topH + GAP + H_WAM + GAP;
-    const scaleY = window.innerHeight < totalH ? window.innerHeight / totalH : 1;
-    const arena = document.querySelector('main');
-    if (scaleY < 1) {
-        arena.style.transformOrigin = '0 0';
-        arena.style.transform = `scale(${scaleY})`;
-        arena.style.width  = `${totalW / scaleY}px`;
-        arena.style.height = `${window.innerHeight / scaleY}px`;
-    }
-
-    // Re-scale once WAM has rendered its real height
-    customElements.whenDefined('wam-host').then(() => {
-        requestAnimationFrame(() => {
-            const realH = wins[4].offsetHeight;
-            if (Math.abs(realH - H_WAM) > 20) {
-                wins[4].style.height = `${realH}px`;
-                const newTotalH = GAP + topH + GAP + realH + GAP;
-                const newScale  = window.innerHeight < newTotalH ? window.innerHeight / newTotalH : 1;
-                if (newScale < 1) {
-                    arena.style.transform = `scale(${newScale})`;
-                    arena.style.width  = `${totalW / newScale}px`;
-                    arena.style.height = `${window.innerHeight / newScale}px`;
-                } else {
-                    arena.style.transform = '';
-                    arena.style.width  = '';
-                    arena.style.height = '';
-                }
-            }
-        });
-    });
-
-    initDraggable(wins);
-}
