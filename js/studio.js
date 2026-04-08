@@ -88,18 +88,41 @@ function layout() {
     const wButter = totalW - colRight - GAP;
     wins[5].style.cssText = `left:${colRight}px; top:${GAP}px; width:${wButter}px; height:${topH}px`;
 
-    // Piano : pleine largeur en bas
-    wins[4].style.cssText = `left:${GAP}px; top:${GAP + topH + GAP}px; width:${totalW - 2 * GAP}px`;
+    const H_WAM = 460;
 
-    const totalH = GAP + topH + GAP + (wins[4].offsetHeight || 300) + GAP;
+    // Piano : pleine largeur en bas
+    wins[4].style.cssText = `left:${GAP}px; top:${GAP + topH + GAP}px; width:${totalW - 2 * GAP}px; height:${H_WAM}px`;
+
+    const totalH = GAP + topH + GAP + H_WAM + GAP;
     const scaleY = window.innerHeight < totalH ? window.innerHeight / totalH : 1;
+    const arena = document.querySelector('main');
     if (scaleY < 1) {
-        const arena = document.querySelector('main');
         arena.style.transformOrigin = '0 0';
         arena.style.transform = `scale(${scaleY})`;
         arena.style.width  = `${totalW / scaleY}px`;
         arena.style.height = `${window.innerHeight / scaleY}px`;
     }
+
+    // Re-scale once WAM has rendered its real height
+    customElements.whenDefined('wam-host').then(() => {
+        requestAnimationFrame(() => {
+            const realH = wins[4].offsetHeight;
+            if (Math.abs(realH - H_WAM) > 20) {
+                wins[4].style.height = `${realH}px`;
+                const newTotalH = GAP + topH + GAP + realH + GAP;
+                const newScale  = window.innerHeight < newTotalH ? window.innerHeight / newTotalH : 1;
+                if (newScale < 1) {
+                    arena.style.transform = `scale(${newScale})`;
+                    arena.style.width  = `${totalW / newScale}px`;
+                    arena.style.height = `${window.innerHeight / newScale}px`;
+                } else {
+                    arena.style.transform = '';
+                    arena.style.width  = '';
+                    arena.style.height = '';
+                }
+            }
+        });
+    });
 
     initDraggable(wins);
 }
